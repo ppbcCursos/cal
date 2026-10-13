@@ -1,14 +1,136 @@
-<!DOCTYPE html><html><head>
-<title>Calculator</title><meta charset="utf-8">
-<script type="text/javascript">
-function inverse() {
-  var num = document.getElementById("n1");
-  num.value = 1/num.value;
-}
-function square() {
-  var num = document.getElementById("n1");
-  num.value = num.value * num.value;
-}
-</script>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calculadora</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif; background: #eef2f7; color: #172033; }
+    main { width: min(92vw, 360px); padding: 24px; border-radius: 18px; background: white; box-shadow: 0 12px 35px #17203322; }
+    h1 { margin: 0 0 16px; font-size: 1.5rem; }
+    output { display: block; width: 100%; padding: 18px 12px; margin-bottom: 14px; text-align: right; font-size: 2rem; overflow-wrap: anywhere; background: #f3f6fa; border-radius: 10px; min-height: 78px; }
+    .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    button { padding: 15px 5px; border: 0; border-radius: 9px; background: #e9eef5; font: inherit; font-size: 1.2rem; cursor: pointer; }
+    button:hover { filter: brightness(.94); }
+    button:focus-visible { outline: 3px solid #2563eb; }
+    .op { background: #cbdcfb; }
+    .equals { background: #2563eb; color: white; }
+    .clear { background: #fbd5d5; }
+    p { font-size: .8rem; color: #526079; }
+  </style>
 </head>
-
+<body>
+<main>
+  <h1>Calculadora</h1>
+  <output id="display" aria-live="polite" aria-label="Resultado">0</output>
+  <div class="keys" id="keys">
+    <button data-action="clear" class="clear">C</button>
+    <button data-action="sign">±</button>
+    <button data-action="inverse">1/x</button>
+    <button data-action="operator" data-value="/" class="op">÷</button>
+    <button data-action="digit" data-value="7">7</button>
+    <button data-action="digit" data-value="8">8</button>
+    <button data-action="digit" data-value="9">9</button>
+    <button data-action="operator" data-value="*" class="op">×</button>
+    <button data-action="digit" data-value="4">4</button>
+    <button data-action="digit" data-value="5">5</button>
+    <button data-action="digit" data-value="6">6</button>
+    <button data-action="operator" data-value="-" class="op">−</button>
+    <button data-action="digit" data-value="1">1</button>
+    <button data-action="digit" data-value="2">2</button>
+    <button data-action="digit" data-value="3">3</button>
+    <button data-action="operator" data-value="+" class="op">+</button>
+    <button data-action="square">x²</button>
+    <button data-action="digit" data-value="0">0</button>
+    <button data-action="decimal">,</button>
+    <button data-action="equals" class="equals">=</button>
+  </div>
+  <p>Teclado: números, +, -, *, /, Enter, Escape y Retroceso.</p>
+</main>
+<script>
+(() => {
+  "use strict";
+  const display = document.getElementById("display");
+  let current = "0", previous = null, operator = null, fresh = false, error = false;
+  function render() { display.textContent = current.replace(".", ","); }
+  function reset() { current = "0"; previous = null; operator = null; fresh = false; error = false; render(); }
+  function showNumber(n) {
+    if (!Number.isFinite(n)) { current = "Error"; error = true; }
+    else { current = String(Number(n.toPrecision(12))); error = false; }
+    render();
+  }
+  function digit(d) {
+    if (error) reset();
+    if (fresh) { current = d; fresh = false; }
+    else if (current === "0") current = d;
+    else if (current === "-0") current = "-" + d;
+    else if (current.replace(/[-.]/g, "").length < 15) current += d;
+    render();
+  }
+  function decimal() {
+    if (error) reset();
+    if (fresh) { current = "0"; fresh = false; }
+    if (!current.includes(".")) current += ".";
+    render();
+  }
+  function calculate(a, b, op) {
+    switch (op) {
+      case "+": return a + b;
+      case "-": return a - b;
+      case "*": return a * b;
+      case "/": return b === 0 ? NaN : a / b;
+      default: return b;
+    }
+  }
+  function equals() {
+    if (error || operator === null || previous === null) return;
+    const result = calculate(previous, Number(current), operator);
+    previous = null; operator = null; fresh = true; showNumber(result);
+  }
+  function setOperator(op) {
+    if (error) return;
+    if (operator !== null && !fresh) {
+      const result = calculate(previous, Number(current), operator);
+      showNumber(result);
+      if (error) return;
+    }
+    previous = Number(current); operator = op; fresh = true;
+  }
+  function unary(action) {
+    if (error) return;
+    const n = Number(current);
+    showNumber(action === "square" ? n * n : action === "inverse" ? (n === 0 ? NaN : 1 / n) : -n);
+  }
+  function backspace() {
+    if (error) { reset(); return; }
+    if (fresh) return;
+    current = current.length <= 1 || (current.length === 2 && current[0] === "-") ? "0" : current.slice(0, -1);
+    render();
+  }
+  function handle(action, value) {
+    if (action === "digit") digit(value);
+    else if (action === "decimal") decimal();
+    else if (action === "operator") setOperator(value);
+    else if (action === "equals") equals();
+    else if (action === "clear") reset();
+    else if (action === "sign" || action === "inverse" || action === "square") unary(action);
+    else if (action === "backspace") backspace();
+  }
+  document.getElementById("keys").addEventListener("click", e => {
+    const button = e.target.closest("button[data-action]");
+    if (button) handle(button.dataset.action, button.dataset.value);
+  });
+  document.addEventListener("keydown", e => {
+    if (/^[0-9]$/.test(e.key)) handle("digit", e.key);
+    else if (e.key === "." || e.key === ",") handle("decimal");
+    else if (["+", "-", "*", "/"].includes(e.key)) { e.preventDefault(); handle("operator", e.key); }
+    else if (e.key === "Enter" || e.key === "=") { e.preventDefault(); handle("equals"); }
+    else if (e.key === "Escape") handle("clear");
+    else if (e.key === "Backspace") handle("backspace");
+  });
+  render();
+})();
+</script>
+</body>
+</html>
